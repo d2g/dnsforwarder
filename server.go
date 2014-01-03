@@ -15,13 +15,15 @@ type Server struct {
 	Configuration *Configuration
 	Cache         cache.Cache
 	Hosts         hosts.Hosts
-	Hijacker      Hijacker
+	Hijacker
 }
 
 // The Hijacker must write the message to the writer.
-type Hijacker interface {
-	Hijack(dns.ResponseWriter, *dns.Msg) (bool, error)
-}
+/*
+ * Return: Bool (Was it hijacked?) if True then the client should have written to the DNS Response Writer
+ * Return: Any Errors?
+ */
+type Hijacker func(dns.ResponseWriter, *dns.Msg) (bool, error)
 
 func (this *Server) ListenAndServeTCP(address net.TCPAddr) error {
 
@@ -75,7 +77,7 @@ func (this *Server) UDPRequest(response dns.ResponseWriter, message *dns.Msg) {
 func (this *Server) Request(method string, response dns.ResponseWriter, message *dns.Msg) {
 	//Hijack Request If Needed.
 	if this.Hijacker != nil {
-		wasHijacked, err := this.Hijacker.Hijack(response, message)
+		wasHijacked, err := this.Hijacker(response, message)
 		if err != nil {
 			log.Printf("DNS Hijack Error:%v\n", err)
 		}
