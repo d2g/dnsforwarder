@@ -106,7 +106,6 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 
 	//Check Against Local Host File
 	if this.Hosts != nil {
-		log.Println(strings.TrimSuffix(message.Question[0].Name, "."))
 		isLocal, ip, err := this.Hosts.Get(strings.TrimSuffix(message.Question[0].Name, "."))
 
 		if err != nil {
