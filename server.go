@@ -100,7 +100,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 				return
 			}
 		} else {
-			log.Println("Warning Cache Error:" + err.Error())
+			log.Println("Warning: Cache Error \"" + err.Error() + "\" On " + strings.TrimSuffix(message.Question[0].Name, "."))
 		}
 	}
 
