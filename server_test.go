@@ -8,15 +8,15 @@ import (
 )
 
 /*
- * Example Server :D
+ * Example DNS Forwarding Server
  */
-func Test_ExampleServer(test *testing.T) {
+func ExampleServer(test *testing.T) {
 	configuration := Configuration{}
 	configuration.ReadTimeout = 10
 	configuration.WriteTimeout = 10
 	configuration.TTL = 600
-	//configuration.NameServers = []net.TCPAddr{net.TCPAddr{IP: net.IPv4(10, 187, 7, 101), Port: 53}, net.TCPAddr{IP: net.IPv4(10, 187, 7, 102), Port: 53}}
-	configuration.NameServers = []net.TCPAddr{net.TCPAddr{IP: net.IPv4(192, 168, 1, 254), Port: 53}}
+
+	configuration.NameServers = []net.TCPAddr{net.TCPAddr{IP: net.IPv4(208, 67, 222, 222), Port: 53}, net.TCPAddr{IP: net.IPv4(208, 67, 220, 220), Port: 53}}
 
 	cache := memorycache.Memory{}
 	cache.Cache = make(map[string]memorycache.MemoryCacheRecord)

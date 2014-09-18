@@ -79,7 +79,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 	if this.Hijacker != nil {
 		wasHijacked, err := this.Hijacker(response, message)
 		if err != nil {
-			log.Printf("DNS Hijack Error:%v\n", err)
+			log.Printf("Error: DNS Hijack:%v\n", err)
 		}
 		if wasHijacked {
 			return
@@ -95,7 +95,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 				cacheMessage.Id = message.Id
 				err := response.WriteMsg(cacheMessage)
 				if err != nil {
-					log.Printf("Error Writing Cached Response:%v\n", err)
+					log.Printf("Error: Writing Cached Response:%v\n", err)
 				}
 				return
 			}
@@ -109,7 +109,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 		isLocal, ip, err := this.Hosts.Get(strings.TrimSuffix(message.Question[0].Name, "."))
 
 		if err != nil {
-			log.Println("Error Looking At Local DNS:" + err.Error())
+			log.Println("Error: Looking At Local DNS:" + err.Error())
 
 		} else {
 			if isLocal {
@@ -122,7 +122,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 				localResponse.Answer = append(localResponse.Answer, a)
 				err := response.WriteMsg(localResponse)
 				if err != nil {
-					log.Printf("Error Writing Local Response:%v\n", err)
+					log.Printf("Error: Writing Local Response:%v\n", err)
 				}
 
 				return
@@ -139,14 +139,14 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 
 	err = response.WriteMsg(result)
 	if err != nil {
-		log.Printf("Error Writing Response:%v\n", err)
+		log.Printf("Error: Writing Response:%v\n", err)
 	}
 
 	//Cache Response :D
 	if this.Cache != nil {
 		err = this.Cache.Add(result)
 		if err != nil {
-			log.Printf("Error Adding Response To Cache:%v\n", err)
+			log.Printf("Error: Adding Response To Cache:%v\n", err)
 		}
 	}
 }
@@ -165,7 +165,7 @@ func (this *Server) remoteDNSLookup(protocol string, request *dns.Msg) (*dns.Msg
 		result, _, err := dnsClient.Exchange(request, nameserver.String())
 
 		if err != nil {
-			log.Printf("DNS Error:" + err.Error())
+			log.Printf("Error: DNS:" + err.Error())
 			continue
 		}
 
@@ -186,6 +186,6 @@ func (this *Server) remoteDNSLookup(protocol string, request *dns.Msg) (*dns.Msg
 	if err != nil {
 		return nil, err
 	} else {
-		return nil, errors.New("Unknown DNS Error")
+		return nil, errors.New("Error: Unknown DNS Error")
 	}
 }
