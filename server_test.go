@@ -3,14 +3,14 @@ package dnsforwarder
 import (
 	memorycache "github.com/d2g/dnsforwarder/cache/memory"
 	memoryhosts "github.com/d2g/dnsforwarder/hosts/memory"
+	"log"
 	"net"
-	"testing"
 )
 
 /*
- * Example DNS Forwarding Server
- */
-func ExampleServer(test *testing.T) {
+Example DNS Forwarding Server
+*/
+func ExampleServer() {
 	configuration := Configuration{}
 	configuration.ReadTimeout = 10
 	configuration.WriteTimeout = 10
@@ -33,12 +33,12 @@ func ExampleServer(test *testing.T) {
 	go func() {
 		err := server.ListenAndServeUDP(net.UDPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 53})
 		if err != nil {
-			test.Error("UDP Error:%v\n", err)
+			log.Fatalf("UDP Error:%s\n", err.Error())
 		}
 	}()
 
 	err := server.ListenAndServeTCP(net.TCPAddr{IP: net.IPv4(0, 0, 0, 0), Port: 53})
 	if err != nil {
-		test.Error("TCP Error:%v\n", err)
+		log.Fatalf("TCP Error:%s\n", err.Error())
 	}
 }

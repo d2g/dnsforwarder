@@ -5,9 +5,6 @@ import (
 	"net"
 )
 
-//const OPENDNS_PRIMARY string = "208.67.222.222"
-//const OPENDNS_SECONDARY string = "208.67.220.220"
-
 type Configuration struct {
 	ReadTimeout  int
 	WriteTimeout int
@@ -37,7 +34,7 @@ func (t Configuration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(stringMarshal)
 }
 
-func (t *Configuration) UnmarshalJSON(data []byte) error {
+func (t *Configuration) UnmarshalJSON(data []byte) (err error) {
 	stringUnMarshal := struct {
 		ReadTimeout  int
 		WriteTimeout int
@@ -45,9 +42,9 @@ func (t *Configuration) UnmarshalJSON(data []byte) error {
 		TTL          uint32
 	}{}
 
-	err := json.Unmarshal(data, &stringUnMarshal)
+	err = json.Unmarshal(data, &stringUnMarshal)
 	if err != nil {
-		return err
+		return
 	}
 
 	t.ReadTimeout = stringUnMarshal.ReadTimeout
@@ -57,7 +54,8 @@ func (t *Configuration) UnmarshalJSON(data []byte) error {
 	nameServers := make([]net.TCPAddr, 0)
 
 	for _, value := range stringUnMarshal.NameServers {
-		address, err := net.ResolveTCPAddr("tcp4", value)
+		var address *net.TCPAddr
+		address, err = net.ResolveTCPAddr("tcp4", value)
 		if err != nil {
 			break
 		} else {
@@ -67,5 +65,5 @@ func (t *Configuration) UnmarshalJSON(data []byte) error {
 
 	t.NameServers = nameServers
 
-	return err
+	return
 }

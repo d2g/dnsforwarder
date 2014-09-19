@@ -1,3 +1,8 @@
+/*
+Package dnsforwarder implements a DNS server with local lookup and caching.
+Based on the DNS implementation by miekg (github.com/miekg/dns).
+*/
+
 package dnsforwarder
 
 import (
@@ -18,17 +23,17 @@ type Server struct {
 	Hijacker
 }
 
-// The Hijacker must write the message to the writer.
 /*
- * Return: Bool (Was it hijacked?) if True then the client should have written to the DNS Response Writer
- * Return: Any Errors?
- */
+The Implementation of the Hijacker interface must write the message to the writer.
+It returns weather the message was hijacked (true) or not (false). With any errors.
+*/
 type Hijacker func(dns.ResponseWriter, *dns.Msg) (bool, error)
 
+// Listen for incoming TCP Connections
 func (this *Server) ListenAndServeTCP(address net.TCPAddr) error {
 
 	tcpHandler := dns.NewServeMux()
-	tcpHandler.HandleFunc(".", this.TCPRequest)
+	tcpHandler.HandleFunc(".", this.tCPRequest)
 
 	tcpServer := &dns.Server{Addr: address.String(),
 		Net:          "tcp",
@@ -38,17 +43,17 @@ func (this *Server) ListenAndServeTCP(address net.TCPAddr) error {
 
 	err := tcpServer.ListenAndServe()
 	if err != nil {
-		log.Fatal("TCP DNS Server Failed, Error:" + err.Error())
 		return err
 	}
 
 	return nil
 }
 
+// Listen for incoming UDP Connections
 func (this *Server) ListenAndServeUDP(address net.UDPAddr) error {
 
 	udpHandler := dns.NewServeMux()
-	udpHandler.HandleFunc(".", this.UDPRequest)
+	udpHandler.HandleFunc(".", this.uDPRequest)
 
 	udpServer := &dns.Server{Addr: address.String(),
 		Net:          "udp",
@@ -59,22 +64,29 @@ func (this *Server) ListenAndServeUDP(address net.UDPAddr) error {
 
 	err := udpServer.ListenAndServe()
 	if err != nil {
-		log.Println("UDP DNS Server Failed, Error:" + err.Error())
 		return err
 	}
 
 	return nil
 }
 
-func (this *Server) TCPRequest(response dns.ResponseWriter, message *dns.Msg) {
-	this.Request("tcp", response, message)
+//Wrapper to turn TCP requests into generic requests.
+func (this *Server) tCPRequest(response dns.ResponseWriter, message *dns.Msg) {
+	this.request("tcp", response, message)
 }
 
-func (this *Server) UDPRequest(response dns.ResponseWriter, message *dns.Msg) {
-	this.Request("udp", response, message)
+//Wrapper to turn UDP requests into generic requests.
+func (this *Server) uDPRequest(response dns.ResponseWriter, message *dns.Msg) {
+	this.request("udp", response, message)
 }
 
-func (this *Server) Request(method string, response dns.ResponseWriter, message *dns.Msg) {
+//Handles the request writing the response back:
+//Checked in the following order:
+//	* Hijacker
+//  * Local Hosts
+//  * Cache
+//  * Remote Lookup
+func (this *Server) request(method string, response dns.ResponseWriter, message *dns.Msg) {
 	//Hijack Request If Needed.
 	if this.Hijacker != nil {
 		wasHijacked, err := this.Hijacker(response, message)
@@ -83,6 +95,32 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 		}
 		if wasHijacked {
 			return
+		}
+	}
+
+	//Check Against Local Host File
+	if this.Hosts != nil {
+		isLocal, ip, err := this.Hosts.Get(strings.TrimSuffix(message.Question[0].Name, "."))
+
+		if err != nil {
+			log.Println("Error: Looking At Local DNS:" + err.Error())
+
+		} else {
+			if isLocal {
+				//Return the local device detail
+				localResponse := new(dns.Msg)
+				localResponse.SetReply(message)
+				rr_header := dns.RR_Header{Name: message.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: this.Configuration.TTL}
+
+				a := &dns.A{Hdr: rr_header, A: ip}
+				localResponse.Answer = append(localResponse.Answer, a)
+				err := response.WriteMsg(localResponse)
+				if err != nil {
+					log.Printf("Error: Writing Local Response:%v\n", err)
+				}
+
+				return
+			}
 		}
 	}
 
@@ -101,32 +139,6 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 			}
 		} else {
 			log.Println("Warning: Cache Error \"" + err.Error() + "\" On " + strings.TrimSuffix(message.Question[0].Name, "."))
-		}
-	}
-
-	//Check Against Local Host File
-	if this.Hosts != nil {
-		isLocal, ip, err := this.Hosts.Get(strings.TrimSuffix(message.Question[0].Name, "."))
-
-		if err != nil {
-			log.Println("Error: Looking At Local DNS:" + err.Error())
-
-		} else {
-			if isLocal {
-				//Return the local device detail
-				localResponse := new(dns.Msg)
-				localResponse.SetReply(message)
-				rr_header := dns.RR_Header{Name: message.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: this.Configuration.TTL}
-
-				a := &dns.A{rr_header, ip}
-				localResponse.Answer = append(localResponse.Answer, a)
-				err := response.WriteMsg(localResponse)
-				if err != nil {
-					log.Printf("Error: Writing Local Response:%v\n", err)
-				}
-
-				return
-			}
 		}
 	}
 
@@ -151,6 +163,7 @@ func (this *Server) Request(method string, response dns.ResponseWriter, message 
 	}
 }
 
+//Does the remote lookup in the remote DNS servers.
 func (this *Server) remoteDNSLookup(protocol string, request *dns.Msg) (*dns.Msg, error) {
 	dnsClient := &dns.Client{
 		Net:          protocol,
@@ -161,7 +174,6 @@ func (this *Server) remoteDNSLookup(protocol string, request *dns.Msg) (*dns.Msg
 	var err error = nil
 
 	for _, nameserver := range this.Configuration.NameServers {
-		//result, returnTime, err := dnsClient.Exchange(request, nameserver)
 		result, _, err := dnsClient.Exchange(request, nameserver.String())
 
 		if err != nil {
@@ -170,15 +182,8 @@ func (this *Server) remoteDNSLookup(protocol string, request *dns.Msg) (*dns.Msg
 		}
 
 		if result != nil && result.Rcode != dns.RcodeSuccess {
-			//log.Printf("%s failed to get an valid answer on %s\n", request.Question[0].Name, nameserver)
 			continue
 		}
-
-		//if dns.IsFqdn(request.Question[0].Name) {
-		//	log.Printf("%s resolv on %s ttl: %d\n", request.Question[0].Name[:len(request.Question[0].Name)-1], nameserver, returnTime)
-		//} else {
-		//	log.Printf("%s resolv on %s ttl: %d\n", request.Question[0].Name, nameserver, returnTime)
-		//}
 
 		return result, nil
 	}
